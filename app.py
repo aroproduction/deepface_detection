@@ -1,6 +1,8 @@
 import cv2
 from deepface import DeepFace
 import numpy as np
+import tkinter as tk
+from PIL import Image, ImageTk
 
 # Load face detector model
 net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "res10_300x300_ssd_iter_140000.caffemodel")
@@ -8,12 +10,31 @@ net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "res10_300x300_ssd_iter_14
 # Start video capture
 cap = cv2.VideoCapture(0)
 
-while True:
+# Set the resolution to 640x480
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 420)
+
+# Create a Tkinter window
+window = tk.Tk()
+
+# Create a label in the window to display video feed
+label = tk.Label(window)
+label.pack()
+
+# Create labels to display detection results
+gender_label = tk.Label(window)
+gender_label.pack()
+age_label = tk.Label(window)
+age_label.pack()
+emotion_label = tk.Label(window)
+emotion_label.pack()
+
+def update_image():
     # Read frame
     ret, frame = cap.read()
 
     if not ret:
-        break
+        return
 
     # Detect faces
     (h, w) = frame.shape[:2]
@@ -44,18 +65,33 @@ while True:
 
             gender, age, emotion = result[0]['dominant_gender'], result[0]['age'], result[0]['dominant_emotion']
 
-             # Draw rectangle around the face
+            # Update detection result labels
+            gender_label.config(text=f"Gender: {gender}")
+            age_label.config(text=f"Age: {age}")
+            emotion_label.config(text=f"Emotion: {emotion}")
+
+            # Draw rectangle around the face
             cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
 
             # Draw gender on the frame
             cv2.putText(frame, f"{gender}, {age}, {emotion}", (startX, startY-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
 
-    # Display the resulting frame
-    cv2.imshow('Video', frame)
+    # Convert the image from BGR color (which OpenCV uses) to RGB color (which Tkinter uses)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
 
-    # Break the loop on 'q' key press
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    # Update the image displayed on the label
+    label.config(image=photo)
+    label.image = photo
+
+    # Call this function again after 10 milliseconds
+    window.after(10, update_image)
+
+# Call the update_image function to start
+update_image()
+
+# Start the Tkinter main loop
+window.mainloop()
 
 # Release the capture and destroy all windows
 cap.release()
