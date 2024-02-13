@@ -1,46 +1,27 @@
 import cv2
-from deepface import DeepFace
+import streamlit as st
 import numpy as np
-import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image
+from deepface import DeepFace
 
-# Load face detector model
+st.title("Real Time Face Detection")
+
+# Load the cascade
 net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "res10_300x300_ssd_iter_140000.caffemodel")
 
-# Start video capture
-cap = cv2.VideoCapture(0)
+# Add a slider to the sidebar
+FONT_SIZE = st.sidebar.slider('Font size', min_value=0.1, max_value=3.0, value=0.5, step=0.1)
+FONT_WEIGHT = st.sidebar.slider('Font weight', min_value=0.1, max_value=3.0, value=0.5, step=0.1)
+BORDER_WIDTH = st.sidebar.slider('Border width', min_value=0.1, max_value=3.0, value=0.5, step=0.1)
 
-# Set the resolution to 640x480
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 420)
-
-# Create a Tkinter window
-window = tk.Tk()
-
-# Create a label in the window to display video feed
-label = tk.Label(window)
-label.pack()
-
-# Create labels to display detection results
-gender_label = tk.Label(window)
-gender_label.pack()
-age_label = tk.Label(window)
-age_label.pack()
-emotion_label = tk.Label(window)
-emotion_label.pack()
-
-def update_image():
-    # Read frame
-    ret, frame = cap.read()
-
-    if not ret:
-        return
-
-    # Detect faces
+# Function for detecting faces
+def detect_faces(frame):
     (h, w) = frame.shape[:2]
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
     net.setInput(blob)
     detections = net.forward()
+
+    face_count = 0  # Initialize face counter
 
     # Loop over the detections
     for i in range(0, detections.shape[2]):
@@ -65,34 +46,23 @@ def update_image():
 
             gender, age, emotion = result[0]['dominant_gender'], result[0]['age'], result[0]['dominant_emotion']
 
-            # Update detection result labels
-            gender_label.config(text=f"Gender: {gender}")
-            age_label.config(text=f"Age: {age}")
-            emotion_label.config(text=f"Emotion: {emotion}")
-
             # Draw rectangle around the face
-            cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
+            cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), int(BORDER_WIDTH))
 
             # Draw gender on the frame
-            cv2.putText(frame, f"{gender}, {age}, {emotion}", (startX, startY-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
+            cv2.putText(frame, f"{gender}, {age}, {emotion}", (startX, startY-10), cv2.FONT_HERSHEY_SIMPLEX, FONT_SIZE, (0,255,0), int(FONT_WEIGHT))
 
-    # Convert the image from BGR color (which OpenCV uses) to RGB color (which Tkinter uses)
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
+            face_count += 1  # Increment face counter
 
-    # Update the image displayed on the label
-    label.config(image=photo)
-    label.image = photo
+    return frame, face_count
 
-    # Call this function again after 10 milliseconds
-    window.after(10, update_image)
+# Upload the image
+uploaded_file = st.file_uploader("Choose an image...", type="jpg")
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    image = np.array(image)
 
-# Call the update_image function to start
-update_image()
-
-# Start the Tkinter main loop
-window.mainloop()
-
-# Release the capture and destroy all windows
-cap.release()
-cv2.destroyAllWindows()
+    # Detect and display faces
+    result_image, face_count = detect_faces(image)
+    st.image(result_image, caption='Uploaded Image.', use_column_width=True)
+    st.write("Number of faces detected: ", face_count)
